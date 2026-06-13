@@ -64,7 +64,9 @@ def scan_models():
         rel_path = gguf.relative_to(MODELS_DIR)
         parent_dir = rel_path.parent
 
-        is_mmproj = "mmproj" in gguf.stem.lower()
+        stem_lower = gguf.stem.lower()
+        is_mmproj = "mmproj" in stem_lower
+        is_mtp_draft = stem_lower.startswith("mtp-")
 
         all_gguf.append(
             {
@@ -72,19 +74,25 @@ def scan_models():
                 "path": str(rel_path).replace("\\", "/"),
                 "dir": str(parent_dir).replace("\\", "/"),
                 "is_mmproj": is_mmproj,
+                "is_mtp_draft": is_mtp_draft,
                 "size_mb": gguf.stat().st_size // (1024 * 1024),
             }
         )
 
     models = []
     mmprojs = []
+    mtp_drafts = []
 
     for g in all_gguf:
         if g["is_mmproj"]:
             mmprojs.append(g)
+        elif g["is_mtp_draft"]:
+            mtp_drafts.append(g)
         else:
             g["mmproj"] = None
             g["mmproj_name"] = None
+            g["model_draft"] = None
+            g["model_draft_name"] = None
             models.append(g)
 
     for m in mmprojs:
@@ -92,6 +100,13 @@ def scan_models():
             if g["dir"] == m["dir"]:
                 g["mmproj"] = m["path"]
                 g["mmproj_name"] = m["name"]
+                break
+
+    for d in mtp_drafts:
+        for g in models:
+            if g["dir"] == d["dir"]:
+                g["model_draft"] = d["path"]
+                g["model_draft_name"] = d["name"]
                 break
 
     return models
@@ -235,6 +250,10 @@ def api_start():
         chat_template_kwargs = config.get("chat_template_kwargs")
         if chat_template_kwargs:
             cmd.extend(["--chat-template-kwargs", chat_template_kwargs])
+
+        model_draft = data.get("model_draft")
+        if model_draft:
+            cmd.extend(["--model-draft", str(Path(models_dir) / model_draft)])
 
         if mmproj_path:
             cmd.extend(["--mmproj", str(Path(models_dir) / mmproj_path)])

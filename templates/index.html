@@ -39,6 +39,7 @@
         .model-card .path { font-size: 0.8rem; color: #888; word-break: break-all; }
         .model-card .size { font-size: 0.8rem; color: #666; margin-top: 5px; }
         .model-card .mmproj { font-size: 0.8rem; color: #ffa500; margin-top: 5px; }
+        .model-card .draft { font-size: 0.8rem; color: #c084fc; margin-top: 5px; }
         
         .status { padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center; font-weight: bold; }
         .status.stopped { background: #2d2d44; color: #888; }
@@ -238,10 +239,11 @@
         function renderModelList(models) {
             const list = document.getElementById('modelList');
             list.innerHTML = models.map(m => `
-                <div class="model-card" id="model-${m.path.replace(/[\/\\]/g, '-')}" onclick="selectModel(this, '${m.path}', '${m.mmproj || ''}')">
-                    <div class="name">${m.name} ${m.mmproj ? '<span style="color:#4ade80;">👁️ Vision</span>' : ''}</div>
+                <div class="model-card" id="model-${m.path.replace(/[\/\\]/g, '-')}" onclick="selectModel(this, '${m.path}', '${m.mmproj || ''}', '${m.model_draft || ''}')">
+                    <div class="name">${m.name} ${m.mmproj ? '<span style="color:#4ade80;">👁️ Vision</span>' : ''} ${m.model_draft ? '<span style="color:#c084fc;">🚀 MTP</span>' : ''}</div>
                     <div class="path">${m.path}</div>
                     ${m.mmproj ? `<div class="mmproj">📎 mmproj: ${m.mmproj_name}</div>` : ''}
+                    ${m.model_draft ? `<div class="draft">🔮 MTP Draft: ${m.model_draft_name}</div>` : ''}
                     <div class="size">${m.size_mb} MB</div>
                 </div>
             `).join('');
@@ -280,19 +282,27 @@
             }
         }
         
-        function selectModel(el, path, mmproj) {
+        function selectModel(el, path, mmproj, modelDraft) {
             document.querySelectorAll('.model-card').forEach(c => c.classList.remove('selected'));
             el.classList.add('selected');
-            selectedModel = { path, mmproj };
-            
+            selectedModel = { path, mmproj, model_draft: modelDraft || null };
+
+            if (modelDraft) {
+                const specTypeEl = document.getElementById('specType');
+                const draftNMaxEl = document.getElementById('specDraftNMax');
+                if (!specTypeEl.value) specTypeEl.value = 'draft-mtp';
+                if (!draftNMaxEl.value) draftNMaxEl.value = '4';
+            }
+
             const btn = document.getElementById('saveConfigBtn');
             btn.disabled = false;
             btn.classList.add('save-enabled');
-            
+
             const modelInfo = document.getElementById('saveModalModel');
             if (modelInfo && document.getElementById('saveModal').classList.contains('show')) {
                 const mmprojInfo = mmproj ? ` + mmproj` : '';
-                modelInfo.textContent = `将保存模型: ${path}${mmprojInfo}`;
+                const draftInfo = modelDraft ? ` + draft` : '';
+                modelInfo.textContent = `将保存模型: ${path}${mmprojInfo}${draftInfo}`;
             }
         }
         
@@ -325,6 +335,7 @@
                 body: JSON.stringify({
                     model: selectedModel.path,
                     mmproj: mmproj,
+                    model_draft: selectedModel.model_draft || null,
                     config
                 })
             });
@@ -403,7 +414,7 @@
                 if (c.model) {
                     const modelCard = document.getElementById('model-' + c.model.replace(/[\/\\]/g, '-'));
                     if (modelCard) {
-                        selectModel(modelCard, c.model, c.mmproj || '');
+                        selectModel(modelCard, c.model, c.mmproj || '', c['model-draft'] || '');
                     }
                 }
                 
@@ -419,7 +430,8 @@
             const modelInfo = document.getElementById('saveModalModel');
             if (selectedModel) {
                 const mmprojInfo = selectedModel.mmproj ? ` + mmproj` : '';
-                modelInfo.textContent = `将保存模型: ${selectedModel.path}${mmprojInfo}`;
+                const draftInfo = selectedModel.model_draft ? ` + draft` : '';
+                modelInfo.textContent = `将保存模型: ${selectedModel.path}${mmprojInfo}${draftInfo}`;
             } else {
                 modelInfo.textContent = '当前未选择模型';
             }
@@ -451,6 +463,7 @@
                 name,
                 model: selectedModel ? selectedModel.path : null,
                 mmproj: selectedModel ? selectedModel.mmproj : null,
+                "model-draft": selectedModel ? selectedModel.model_draft : null,
                 port: parseInt(document.getElementById('port').value),
                 host: document.getElementById('host').value,
                 ctx_size: parseInt(document.getElementById('ctxSize').value),
