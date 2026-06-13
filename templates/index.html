@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Llama 模型启动器</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { text-align: center; margin-bottom: 30px; color: #00d9ff; }
+        
+        .panel { background: #16213e; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+        .panel h2 { margin-bottom: 15px; color: #00d9ff; font-size: 1.2rem; }
+        
+        .row { display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 15px; }
+        .col { flex: 1; min-width: 200px; }
+        
+        label { display: block; margin-bottom: 5px; color: #aaa; font-size: 0.9rem; }
+        input, select { width: 100%; padding: 10px; background: #0f0f23; border: 1px solid #333; border-radius: 6px; color: #fff; font-size: 1rem; }
+        input:focus, select:focus { outline: none; border-color: #00d9ff; }
+        
+        .btn { padding: 12px 24px; border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; transition: all 0.2s; }
+        .btn-primary { background: #00d9ff; color: #000; }
+        .btn-primary:hover { background: #00b8d9; }
+        .btn-danger { background: #ff4757; color: #fff; }
+        .btn-danger:hover:enabled { background: #ff3344; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn.save-enabled { background: #333; color: #ffffff; }
+        .btn.save-enabled:hover { background: #444; }
+        
+        .btn-row { display: flex; gap: 10px; margin-top: 20px; }
+        
+        .model-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px; }
+        .model-card { background: #0f0f23; border: 2px solid #333; border-radius: 8px; padding: 15px; cursor: pointer; transition: all 0.2s; }
+        .model-card:hover { border-color: #00d9ff; }
+        .model-card.selected { border-color: #00d9ff; background: #0a1a2a; }
+        .model-card .name { font-weight: bold; color: #00d9ff; margin-bottom: 5px; }
+        .model-card .path { font-size: 0.8rem; color: #888; word-break: break-all; }
+        .model-card .size { font-size: 0.8rem; color: #666; margin-top: 5px; }
+        .model-card .mmproj { font-size: 0.8rem; color: #ffa500; margin-top: 5px; }
+        
+        .status { padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center; font-weight: bold; }
+        .status.stopped { background: #2d2d44; color: #888; }
+        .status.running { background: #1a4d2e; color: #4ade80; }
+        
+        .log-container { background: #0a0a15; border-radius: 8px; padding: 15px; height: 300px; overflow-y: auto; font-family: "Consolas", monospace; font-size: 0.85rem; white-space: pre-wrap; word-break: break-all; color: #aaa; }
+        
+        .config-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .config-row label { width: 100px; margin: 0; }
+        .config-row input { flex: 1; }
+        
+        .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); align-items: center; justify-content: center; }
+        .modal.show { display: flex; }
+        .modal-content { background: #16213e; padding: 25px; border-radius: 12px; width: 90%; max-width: 500px; }
+        .modal h3 { margin-bottom: 20px; color: #00d9ff; }
+        .modal-buttons { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+        
+        .tabs { display: flex; gap: 5px; margin-bottom: 15px; }
+        .tab { padding: 8px 16px; background: #0f0f23; border: none; border-radius: 6px; color: #888; cursor: pointer; }
+        .tab.active { background: #00d9ff; color: #000; }
+        
+        .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #1a5d2e; color: #4ade80; padding: 12px 24px; border-radius: 8px; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+        .toast.show { opacity: 1; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🦙 Llama 模型启动器</h1>
+        
+        <div id="status" class="status stopped">服务器未运行</div>
+        
+        <div class="panel">
+            <h2>应用设置</h2>
+            <div class="config-row">
+                <label>模型目录:</label>
+                <input type="text" id="modelsDir" value="llamacpp/models">
+                <button class="btn" style="margin-left:10px;background:#00d9ff;color:#000;" onclick="saveAppConfig()">保存</button>
+                <button id="reloadModelsBtn" class="btn" onclick="reloadModels()" disabled>刷新模型</button>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col">
+                <label>配置文件</label>
+                <select id="configSelect">
+                    <option value="">加载配置...</option>
+                </select>
+            </div>
+            <div class="col" style="flex: 0 0 auto;">
+                <label>&nbsp;</label>
+                <button id="saveConfigBtn" class="btn" onclick="showSaveModal()" disabled>保存配置</button>
+            </div>
+        </div>
+        
+        <div class="panel">
+            <h2>启动参数</h2>
+            <div class="config-row">
+                <label>端口:</label>
+                <input type="number" id="port" value="8080">
+            </div>
+            <div class="config-row">
+                <label>Host:</label>
+                <input type="text" id="host" value="0.0.0.0">
+            </div>
+            <div class="config-row">
+                <label>Ctx Size:</label>
+                <input type="number" id="ctxSize" value="131072">
+            </div>
+            <div class="config-row">
+                <label>Temp:</label>
+                <input type="number" id="temp" value="0.6" step="0.1">
+            </div>
+            <div class="config-row">
+                <label>Top P:</label>
+                <input type="number" id="topP" value="0.95" step="0.01" max="1">
+            </div>
+            <div class="config-row">
+                <label>Top K:</label>
+                <input type="number" id="topK" value="20">
+            </div>
+            <div class="config-row">
+                <label>Min P:</label>
+                <input type="number" id="minP" value="0" step="0.01" min="0" max="1">
+            </div>
+            <div class="config-row">
+                <label>Presence Penalty:</label>
+                <input type="number" id="presencePenalty" value="0" step="0.1">
+            </div>
+            <div class="config-row">
+                <label>Spec Type:</label>
+                <select id="specType">
+                    <option value="">none</option>
+                    <option value="draft-simple">draft-simple</option>
+                    <option value="draft-eagle3">draft-eagle3</option>
+                    <option value="draft-mtp">draft-mtp</option>
+                    <option value="ngram-simple">ngram-simple</option>
+                    <option value="ngram-map-k">ngram-map-k</option>
+                    <option value="ngram-map-k4v">ngram-map-k4v</option>
+                    <option value="ngram-mod">ngram-mod</option>
+                    <option value="ngram-cache">ngram-cache</option>
+                </select>
+            </div>
+            <div class="config-row">
+                <label>Spec Draft N Max:</label>
+                <input type="number" id="specDraftNMax" value="" min="1" max="5" placeholder="留空使用默认">
+            </div>
+            <div class="config-row">
+                <label>Chat Template Args:</label>
+                <input type="text" id="chatTemplateKwargs" value="" placeholder="如: {'add_bos': true}">
+            </div>
+            <div class="config-row">
+                <label>开启视觉理解</label>
+                <input type="checkbox" id="enableMmproj" checked style="width:auto;" >
+            </div>
+        </div>
+        
+        <div class="panel">
+            <h2>选择模型</h2>
+            <div id="modelList" class="model-list">加载中...</div>
+        </div>
+        
+        <div class="btn-row">
+            <button id="startBtn" class="btn btn-primary" onclick="startServer()">启动服务器</button>
+            <button id="stopBtn" class="btn btn-danger" onclick="stopServer()" disabled>停止服务器</button>
+        </div>
+        
+        <div class="panel" style="margin-top: 20px;">
+            <h2>服务器日志</h2>
+            <div id="logContainer" class="log-container">等待日志...</div>
+        </div>
+    </div>
+    
+    <div id="saveModal" class="modal">
+        <div class="modal-content">
+            <h3>保存配置</h3>
+            <div id="saveModalModel" style="margin-bottom:15px;color:#888;font-size:0.9rem;"></div>
+            <label>配置名称:</label>
+            <input type="text" id="configName" placeholder="my-config">
+            <div class="modal-buttons">
+                <button class="btn" style="background: #333;" onclick="hideSaveModal()">取消</button>
+                <button class="btn btn-primary" onclick="saveConfig()">保存</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="toast" class="toast"></div>
+
+    <script>
+        let selectedModel = null;
+        let statusInterval = null;
+        let currentConfigPath = null;
+        
+        let allModels = [];
+        
+        async function loadAppConfig() {
+            const res = await fetch('/api/app-config');
+            const cfg = await res.json();
+            document.getElementById('modelsDir').value = cfg.models_dir || '%USERPROFILE%/.lmstudio/models';
+        }
+        
+        async function saveAppConfig() {
+            const modelsDir = document.getElementById('modelsDir').value.trim();
+            await fetch('/api/app-config', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    models_dir: modelsDir
+                })
+            });
+            const btn = document.getElementById('reloadModelsBtn');
+            btn.disabled = false;
+            btn.classList.add('save-enabled');
+            showToast('设置已保存，请点击"刷新模型"加载新目录');
+        }
+        
+        async function reloadModels() {
+            await loadModels();
+            showToast('模型已刷新');
+        }
+        
+        async function loadModels() {
+            const res = await fetch('/api/models');
+            allModels = await res.json();
+            
+            const list = document.getElementById('modelList');
+            if (allModels.length === 0) {
+                list.innerHTML = '<p style="color:#888;">未找到模型文件</p>';
+                return;
+            }
+            
+            renderModelList(allModels);
+            const btn = document.getElementById('reloadModelsBtn');
+            btn.disabled = true;
+            btn.classList.remove('save-enabled');
+        }
+        
+        function renderModelList(models) {
+            const list = document.getElementById('modelList');
+            list.innerHTML = models.map(m => `
+                <div class="model-card" id="model-${m.path.replace(/[\/\\]/g, '-')}" onclick="selectModel(this, '${m.path}', '${m.mmproj || ''}')">
+                    <div class="name">${m.name} ${m.mmproj ? '<span style="color:#4ade80;">👁️ Vision</span>' : ''}</div>
+                    <div class="path">${m.path}</div>
+                    ${m.mmproj ? `<div class="mmproj">📎 mmproj: ${m.mmproj_name}</div>` : ''}
+                    <div class="size">${m.size_mb} MB</div>
+                </div>
+            `).join('');
+        }
+        
+        async function loadConfigs() {
+            const res = await fetch('/api/configs');
+            const configs = await res.json();
+            
+            const select = document.getElementById('configSelect');
+            select.innerHTML = '<option value="">加载配置...</option>';
+            configs.forEach(c => {
+                const modelName = c.config.model ? c.config.model.split('/').pop() : '无模型';
+                select.innerHTML += `<option value="${c.path}">${c.name} (${modelName})</option>`;
+            });
+        }
+        
+        async function checkStatus() {
+            const res = await fetch('/api/status');
+            const data = await res.json();
+            
+            const status = document.getElementById('status');
+            const startBtn = document.getElementById('startBtn');
+            const stopBtn = document.getElementById('stopBtn');
+            
+            if (data.running) {
+                status.className = 'status running';
+                status.textContent = `服务器运行中 (PID: ${data.pid})`;
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+            } else {
+                status.className = 'status stopped';
+                status.textContent = '服务器未运行';
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+            }
+        }
+        
+        function selectModel(el, path, mmproj) {
+            document.querySelectorAll('.model-card').forEach(c => c.classList.remove('selected'));
+            el.classList.add('selected');
+            selectedModel = { path, mmproj };
+            
+            const btn = document.getElementById('saveConfigBtn');
+            btn.disabled = false;
+            btn.classList.add('save-enabled');
+            
+            const modelInfo = document.getElementById('saveModalModel');
+            if (modelInfo && document.getElementById('saveModal').classList.contains('show')) {
+                const mmprojInfo = mmproj ? ` + mmproj` : '';
+                modelInfo.textContent = `将保存模型: ${path}${mmprojInfo}`;
+            }
+        }
+        
+        async function startServer() {
+            if (!selectedModel) {
+                alert('请先选择模型');
+                return;
+            }
+            
+            const config = {
+                port: parseInt(document.getElementById('port').value),
+                host: document.getElementById('host').value,
+                ctx_size: parseInt(document.getElementById('ctxSize').value),
+                temp: parseFloat(document.getElementById('temp').value),
+                top_p: parseFloat(document.getElementById('topP').value),
+                top_k: parseInt(document.getElementById('topK').value),
+                min_p: parseFloat(document.getElementById('minP').value),
+                presence_penalty: parseFloat(document.getElementById('presencePenalty').value) || null,
+                spec_type: document.getElementById('specType').value || null,
+                spec_draft_n_max: parseInt(document.getElementById('specDraftNMax').value) || null,
+                chat_template_kwargs: document.getElementById('chatTemplateKwargs').value.trim() || null
+            };
+            
+            const enableMmproj = document.getElementById('enableMmproj').checked;
+            const mmproj = enableMmproj ? (selectedModel.mmproj || null) : null;
+            
+            const res = await fetch('/api/start', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    model: selectedModel.path,
+                    mmproj: mmproj,
+                    config
+                })
+            });
+            
+            const data = await res.json();
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+            
+            const port = config.port;
+            setTimeout(() => window.open(`http://localhost:${port}`, '_blank'), 2000);
+            
+            checkStatus();
+            startLogPolling();
+        }
+        
+        async function stopServer() {
+            await fetch('/api/stop', {method: 'POST'});
+            checkStatus();
+        }
+        
+        async function loadLog() {
+            const res = await fetch('/api/log');
+            const data = await res.json();
+            document.getElementById('logContainer').textContent = data.log || '等待日志...';
+            document.getElementById('logContainer').scrollTop = document.getElementById('logContainer').scrollHeight;
+        }
+        
+        function startLogPolling() {
+            if (statusInterval) clearInterval(statusInterval);
+            statusInterval = setInterval(async () => {
+                await checkStatus();
+                await loadLog();
+            }, 2000);
+        }
+        
+        document.getElementById('configSelect').addEventListener('change', async (e) => {
+            currentConfigPath = e.target.value;
+            
+            if (!e.target.value) return;
+            
+            // 加载前先清空原有配置，恢复默认值
+            document.getElementById('port').value = 8080;
+            document.getElementById('host').value = '0.0.0.0';
+            document.getElementById('ctxSize').value = 131072;
+            document.getElementById('temp').value = 1.0;
+            document.getElementById('topP').value = 0.95;
+            document.getElementById('topK').value = 20;
+            document.getElementById('minP').value = 0;
+            document.getElementById('presencePenalty').value = '';
+            document.getElementById('specType').value = '';
+            document.getElementById('specDraftNMax').value = '';
+            document.getElementById('chatTemplateKwargs').value = '';
+            document.getElementById('enableMmproj').checked = true;
+            selectedModel = null;
+            document.querySelectorAll('.model-card.selected').forEach(el => el.classList.remove('selected'));
+            
+            const res = await fetch('/api/configs');
+            const configs = await res.json();
+            const cfg = configs.find(c => c.path === e.target.value);
+            if (cfg) {
+                const c = cfg.config;
+                document.getElementById('port').value = c.port || 8080;
+                document.getElementById('host').value = c.host || '0.0.0.0';
+                document.getElementById('ctxSize').value = c.ctx_size || 131072;
+                document.getElementById('temp').value = c.temp || 0.6;
+                document.getElementById('topP').value = c.top_p || 0.95;
+                document.getElementById('topK').value = c.top_k || 20;
+                document.getElementById('minP').value = c.min_p ?? 0;
+                document.getElementById('presencePenalty').value = c['presence-penalty'] ?? '';
+                document.getElementById('specType').value = c['spec-type'] || '';
+                document.getElementById('specDraftNMax').value = c['spec-draft-n-max'] ?? '';
+                document.getElementById('chatTemplateKwargs').value = c.chat_template_kwargs || '';
+                
+                if (c.model) {
+                    const modelCard = document.getElementById('model-' + c.model.replace(/[\/\\]/g, '-'));
+                    if (modelCard) {
+                        selectModel(modelCard, c.model, c.mmproj || '');
+                    }
+                }
+                
+                document.getElementById('enableMmproj').checked = true;
+                
+                const btn = document.getElementById('saveConfigBtn');
+                btn.disabled = true;
+                btn.classList.remove('save-enabled');
+            }
+        });
+        
+        function showSaveModal() {
+            const modelInfo = document.getElementById('saveModalModel');
+            if (selectedModel) {
+                const mmprojInfo = selectedModel.mmproj ? ` + mmproj` : '';
+                modelInfo.textContent = `将保存模型: ${selectedModel.path}${mmprojInfo}`;
+            } else {
+                modelInfo.textContent = '当前未选择模型';
+            }
+            
+            const configNameInput = document.getElementById('configName');
+            if (currentConfigPath) {
+                configNameInput.value = currentConfigPath.replace('.json', '');
+            } else {
+                configNameInput.value = '';
+            }
+            
+            document.getElementById('saveModal').classList.add('show');
+            configNameInput.focus();
+            
+            configNameInput.onkeydown = (e) => {
+                if (e.key === 'Enter') {
+                    saveConfig();
+                }
+            };
+        }
+        
+        function hideSaveModal() {
+            document.getElementById('saveModal').classList.remove('show');
+        }
+        
+        async function saveConfig() {
+            const name = document.getElementById('configName').value.trim() || 'default';
+            const config = {
+                name,
+                model: selectedModel ? selectedModel.path : null,
+                mmproj: selectedModel ? selectedModel.mmproj : null,
+                port: parseInt(document.getElementById('port').value),
+                host: document.getElementById('host').value,
+                ctx_size: parseInt(document.getElementById('ctxSize').value),
+                temp: parseFloat(document.getElementById('temp').value),
+                top_p: parseFloat(document.getElementById('topP').value),
+                top_k: parseInt(document.getElementById('topK').value),
+                min_p: parseFloat(document.getElementById('minP').value),
+                "presence-penalty": parseFloat(document.getElementById('presencePenalty').value) || null,
+                "spec-type": document.getElementById('specType').value || null,
+                "spec-draft-n-max": parseInt(document.getElementById('specDraftNMax').value) || null,
+                chat_template_kwargs: document.getElementById('chatTemplateKwargs').value.trim() || null
+            };
+            
+            await fetch('/api/configs', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name, config})
+            });
+            
+            currentConfigPath = name + '.json';
+            document.getElementById('configSelect').value = currentConfigPath;
+            
+            hideSaveModal();
+            loadConfigs();
+            const btn = document.getElementById('saveConfigBtn');
+            btn.disabled = true;
+            btn.classList.remove('save-enabled');
+            showToast('配置已保存');
+        }
+        
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2000);
+        }
+        
+        ['port', 'host', 'ctxSize', 'temp', 'topP', 'topK', 'minP', 'presencePenalty', 'specType', 'specDraftNMax', 'chatTemplateKwargs'].forEach(id => {
+            document.getElementById(id).addEventListener('input', () => {
+                const btn = document.getElementById('saveConfigBtn');
+                btn.disabled = false;
+                btn.classList.add('save-enabled');
+            });
+        });
+        
+        loadModels();
+        loadConfigs();
+        loadAppConfig();
+        checkStatus();
+        loadLog();
+    </script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+llamacpp/
+.venv/
+__pycache__/
+*.pyc
+server.log
+config/
+*.zip
