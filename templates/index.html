@@ -306,6 +306,26 @@
             }
         }
         
+        function waitForServerReady(port, timeoutMs = 300000) {
+            const startTime = Date.now();
+            const checkInterval = setInterval(async () => {
+                try {
+                    const res = await fetch('/api/log');
+                    const data = await res.json();
+                    if (data.log && data.log.includes('server is listening on http://')) {
+                        clearInterval(checkInterval);
+                        window.open(`http://localhost:${port}`, '_blank');
+                        showToast('服务器已就绪');
+                    } else if (Date.now() - startTime > timeoutMs) {
+                        clearInterval(checkInterval);
+                        showToast('服务器启动超时，请查看日志');
+                    }
+                } catch (e) {
+                    // 忽略网络错误，继续轮询
+                }
+            }, 2000);
+        }
+        
         async function startServer() {
             if (!selectedModel) {
                 alert('请先选择模型');
@@ -347,7 +367,7 @@
             }
             
             const port = config.port;
-            setTimeout(() => window.open(`http://localhost:${port}`, '_blank'), 2000);
+            waitForServerReady(port);
             
             checkStatus();
             startLogPolling();
