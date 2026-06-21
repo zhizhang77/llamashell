@@ -153,6 +153,8 @@
             <div class="config-row">
                 <label>开启视觉理解</label>
                 <input type="checkbox" id="enableMmproj" checked style="width:auto;" >
+                <label style="margin-left:30px;white-space:nowrap;width:auto;">使用MCP和工具</label>
+                <input type="checkbox" id="enableMcp" checked style="width:auto;" >
             </div>
         </div>
         
@@ -350,6 +352,7 @@
             
             const enableMmproj = document.getElementById('enableMmproj').checked;
             const mmproj = enableMmproj ? (selectedModel.mmproj || null) : null;
+            const mcpProxy = document.getElementById('enableMcp').checked;
             
             const res = await fetch('/api/start', {
                 method: 'POST',
@@ -358,6 +361,7 @@
                     model: selectedModel.path,
                     mmproj: mmproj,
                     model_draft: selectedModel.model_draft || null,
+                    mcp_proxy: mcpProxy,
                     config
                 })
             });
@@ -414,6 +418,7 @@
             document.getElementById('specDraftNMax').value = '';
             document.getElementById('chatTemplateKwargs').value = '';
             document.getElementById('enableMmproj').checked = true;
+            document.getElementById('enableMcp').checked = true;
             selectedModel = null;
             document.querySelectorAll('.model-card.selected').forEach(el => el.classList.remove('selected'));
             
@@ -442,6 +447,7 @@
                 }
                 
                 document.getElementById('enableMmproj').checked = true;
+                document.getElementById('enableMcp').checked = c.mcp_proxy !== undefined ? c.mcp_proxy : true;
                 
                 const btn = document.getElementById('saveConfigBtn');
                 btn.disabled = true;
@@ -497,7 +503,8 @@
                 "presence-penalty": parseFloat(document.getElementById('presencePenalty').value) || null,
                 "spec-type": document.getElementById('specType').value || null,
                 "spec-draft-n-max": parseInt(document.getElementById('specDraftNMax').value) || null,
-                chat_template_kwargs: document.getElementById('chatTemplateKwargs').value.trim() || null
+                chat_template_kwargs: document.getElementById('chatTemplateKwargs').value.trim() || null,
+                mcp_proxy: document.getElementById('enableMcp').checked
             };
             
             await fetch('/api/configs', {
@@ -524,8 +531,15 @@
             setTimeout(() => toast.classList.remove('show'), 2000);
         }
         
-        ['port', 'host', 'ctxSize', 'temp', 'topP', 'topK', 'minP', 'presencePenalty', 'specType', 'specDraftNMax', 'chatTemplateKwargs'].forEach(id => {
+        ['port', 'host', 'ctxSize', 'temp', 'topP', 'topK', 'minP', 'presencePenalty', 'specDraftNMax', 'chatTemplateKwargs'].forEach(id => {
             document.getElementById(id).addEventListener('input', () => {
+                const btn = document.getElementById('saveConfigBtn');
+                btn.disabled = false;
+                btn.classList.add('save-enabled');
+            });
+        });
+        ['specType', 'enableMcp'].forEach(id => {
+            document.getElementById(id).addEventListener('change', () => {
                 const btn = document.getElementById('saveConfigBtn');
                 btn.disabled = false;
                 btn.classList.add('save-enabled');
