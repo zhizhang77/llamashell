@@ -306,7 +306,8 @@
             }
         }
         
-        function waitForServerReady(port, timeoutMs = 300000) {
+        function waitForServerReady(port, targetUrl, timeoutMs = 300000) {
+            const w = window.open('about:blank', '_blank');
             const startTime = Date.now();
             const checkInterval = setInterval(async () => {
                 try {
@@ -314,10 +315,11 @@
                     const data = await res.json();
                     if (data.log && data.log.includes('server is listening on http://')) {
                         clearInterval(checkInterval);
-                        window.open(`http://localhost:${port}`, '_blank');
+                        w.location.href = targetUrl;
                         showToast('服务器已就绪');
                     } else if (Date.now() - startTime > timeoutMs) {
                         clearInterval(checkInterval);
+                        w.close();
                         showToast('服务器启动超时，请查看日志');
                     }
                 } catch (e) {
@@ -367,7 +369,8 @@
             }
             
             const port = config.port;
-            waitForServerReady(port);
+            const host = config.host === '0.0.0.0' ? 'localhost' : config.host;
+            waitForServerReady(port, `http://${host}:${port}`);
             
             checkStatus();
             startLogPolling();
