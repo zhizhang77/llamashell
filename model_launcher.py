@@ -255,11 +255,12 @@ def api_start():
         if model_draft:
             cmd.extend(["--model-draft", str(Path(models_dir) / model_draft)])
 
-        if data.get("mcp_proxy", True):
-            cmd.append("--webui-mcp-proxy")
-
         if mmproj_path:
             cmd.extend(["--mmproj", str(Path(models_dir) / mmproj_path)])
+
+        if data.get("mcp_proxy", True):
+            cmd.append("--webui-mcp-proxy")
+            cmd.extend(["--tools", "all"])
 
         global log_file
         log_file = open(BASE_DIR / "server.log", "w", encoding="utf-8")
